@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <style>
+    body { margin: 0; }
+    canvas { display: block; }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+    window.addEventListener('load', () => {
+      const canvas = document.createElement('canvas');
+      document.body.appendChild(canvas);
+      const renderer = new THREE.WebGLRenderer({ canvas });
+      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      const scene = new THREE.Scene();
+
+      // Targets
+      const targetGeometry = new THREE.SphereGeometry(1, 16, 16);
+      const targets = [];
+      const obstacles = [];
+
+      const createTargetsAndObstacles = () => {
+        for (let i = 0; i < 50; i++) {
+          const targetMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+          const target = new THREE.Mesh(targetGeometry, targetMaterial);
+          target.position.set(Math.random() * 300 - 150, Math.random() * 80 - 40, Math.random() * 300 - 150);
+          scene.add(target);
+          targets.push(target);
+
+          const obstacleGeometry = new THREE.BoxGeometry(2, 2, 2);
+          const obstacleMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+          const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
+          obstacle.position.set(Math.random() * 300 - 150, Math.random() * 80 - 40, Math.random() * 300 - 150);
+          scene.add(obstacle);
+          obstacles.push(obstacle);
+        }
+      };
+      createTargetsAndObstacles();
+
+      camera.position.set(0, 1.7, 0);
+      camera.rotation.order = "YXZ";
+
+      let touchStartX = null;
+      let touchStartY = null;
+      let projectiles = [];
+
+      const onTouchStart = (e) => {
+        e.preventDefault();
+        if (e.touches.length === 1) {
+          touchStartX = e.touches[0].clientX;
+          touchStartY = e.touches[0].clientY;
+        } else if (e.touches.length === 2) {
+          const direction = new THREE.Vector3();
+          camera.getWorldDirection(direction);
+          const projectile = new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffff00 }));
+          projectile.position.copy(camera.position);
+          projectile.velocity = direction.multiplyScalar(5);
+          scene.add(projectile);
+          projectiles.push(projectile);
+        }
+      };
+
+      const onTouchMove = (e) => {
+        e.preventDefault();
+        if (e.touches.length === 1 && touchStartX !== null && touchStartY !== null) {
+          const deltaX = e.touches[0].clientX - touchStartX;
+          const deltaY = e.touches[0].clientY - touchStartY;
+          camera.rotation.y -= deltaX * 0.005;
+          camera.rotation.x -= deltaY * 0.005;
+          touchStartX = e.touches[      0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }
+  };
+
+  const onTouchEnd = (e) => {
+    e.preventDefault();
+    if (e.touches.length === 0) {
+      touchStartX = null;
+      touchStartY = null;
+    }
+  };
+
+  canvas.addEventListener('touchstart', onTouchStart, { passive: false });
+  canvas.addEventListener('touchmove', onTouchMove, { passive: false });
+  canvas.addEventListener('touchend', onTouchEnd, { passive: false });
+  canvas.addEventListener('touchcancel', onTouchEnd, { passive: false });
+
+  const moveCamera = () => {
+    const direction = new THREE.Vector3();
+    camera.getWorldDirection(direction);
+    camera.position.add(direction.multiplyScalar(0.05));
+
+    const bounceBackDistance = 1;
+
+    if (camera.position.x < -150 || camera.position.x > 150) {
+      camera.rotation.y += Math.PI;
+      camera.position.x = Math.sign(camera.position.x) * (150 - bounceBackDistance);
+    }
+
+    if (camera.position.y < -40 || camera.position.y > 40) {
+      camera.rotation.x += Math.PI;
+      camera.position.y = Math.sign(camera.position.y) * (40 - bounceBackDistance);
+    }
+
+    if (camera.position.z < -150 || camera.position.z > 150) {
+      camera.rotation.y += Math.PI;
+      camera.position.z = Math.sign(camera.position.z) * (150 - bounceBackDistance);
+    }
+
+    // Check for obstacle collisions
+    obstacles.forEach(obstacle => {
+      if (camera.position.distanceTo(obstacle.position) < 3) {
+        camera.rotation.y += Math.PI;
+        const bounceDirection = camera.position.clone().sub(obstacle.position).normalize();
+        camera.position.add(bounceDirection.multiplyScalar(bounceBackDistance));
+      }
+    });
+  };
+
+  const animate = () => {
+    requestAnimationFrame(animate);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.render(scene, camera);
+
+    moveCamera();
+
+    // Update projectiles
+    projectiles.forEach((projectile, index) => {
+      projectile.position.add(projectile.velocity);
+
+      // Check for collisions
+      targets.forEach(target => {
+        if (projectile.position.distanceTo(target.position) < 1.2) {
+          if (target.material.color.getHex() === 0x0000ff) {
+            target.material.color.set(0x00ff00);
+            scene.remove(projectile);
+            projectiles.splice(index, 1);
+          }
+        }
+      });
+    });
+  };
+  animate();
+});
+  </script>
+</head>
+<body>
+</body>
+</html>
